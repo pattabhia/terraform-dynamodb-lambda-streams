@@ -30,7 +30,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_logs" {
 # DynamoDB Streams read + helper permissions
 resource "aws_iam_role_policy_attachment" "lambda_ddb_stream_exec" {
   role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSLambdaDynamoDBExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole"
 }
 
 # Lambda function
