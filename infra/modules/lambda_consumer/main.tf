@@ -5,9 +5,10 @@ data "archive_file" "lambda_zip" {
   output_path = "${path.module}/lambda.zip"
 }
 
-# IAM role for Lambda
+# IAM role for Lambda (must trust the Lambda service)
 resource "aws_iam_role" "lambda_role" {
   name = "${var.function_name}-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
@@ -16,13 +17,20 @@ resource "aws_iam_role" "lambda_role" {
       Action    = "sts:AssumeRole"
     }]
   })
+
   tags = var.tags
 }
 
-# Logs + DynamoDB stream read permissions (managed policy)
+# Basic CloudWatch Logs permissions (required)
+resource "aws_iam_role_policy_attachment" "lambda_basic_logs" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# DynamoDB Streams read + helper permissions
 resource "aws_iam_role_policy_attachment" "lambda_ddb_stream_exec" {
   role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/AWSLambdaDynamoDBExecutionRole"
 }
 
 # Lambda function
@@ -35,11 +43,21 @@ resource "aws_lambda_function" "this" {
   filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
+  # Optional hardening / QoL defaults
+  timeout     = 30
+  memory_size = 256
+  publish     = true
+
   environment {
     variables = var.env
   }
 
   tags = var.tags
+
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_basic_logs,
+    aws_iam_role_policy_attachment.lambda_ddb_stream_exec
+  ]
 }
 
 # Event source mapping from DynamoDB Streams -> Lambda
@@ -53,4 +71,8 @@ resource "aws_lambda_event_source_mapping" "ddb_to_lambda" {
   maximum_retry_attempts             = 2
   bisect_batch_on_function_error     = true
   function_response_types            = ["ReportBatchItemFailures"]
+
+  depends_on = [
+    aws_lambda_function.this
+  ]
 }
