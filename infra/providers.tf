@@ -12,8 +12,12 @@ terraform {
     }
   }
 }
+# Make region a variable so CI and local can both set it
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
 
 provider "aws" {
-  profile = "default"
-  region  = "us-east-1"
+  region = var.aws_region
 }
